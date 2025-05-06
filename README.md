@@ -36,9 +36,10 @@ modules:
     walk:
       - 1.3.6.1.2.1.1        # System (includes sysDescr)
       - 1.3.6.1.4.1.12356    # Fortinet MIB
+```
 ---
-
 ### 3. OIDs
+```
         "Firmware Version": ObjectType(ObjectIdentity("1.3.6.1.4.1.12356.101.4.1.1.0")),
         "uptime, days": ObjectType(ObjectIdentity("1.3.6.1.2.1.1.3.0")),
         "cpu, %": ObjectType(ObjectIdentity("1.3.6.1.4.1.12356.101.4.1.3.0")),
@@ -47,11 +48,14 @@ modules:
         "Disk Usage, MB": ObjectType(ObjectIdentity("1.3.6.1.4.1.12356.101.4.1.6.0")),
         "Sessions": ObjectType(ObjectIdentity("1.3.6.1.4.1.12356.101.4.1.6.0")),
         "Active_Sessions": ObjectType(ObjectIdentity("1.3.6.1.4.1.12356.101.4.1.8.0")),
-
         "FanStatusSpeed_1": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.3")),
         "FanStatusSpeed_2": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.4")),
-        "psuStatus-1": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.1")),
-        "psuStatus-2": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.2")),
+
+        "CPU_ON_DIE_Temperature_71": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.1")),  # , °C
+        "MV1514_1_Temperature": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.2")),  # , °C
+        "MV1514_2_Temperature": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.3")),  # , °C
+        "MV1680_Temperature": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.4")),  # , °C
+        
         "TMP1_External_Temperature": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.5")),  # , °C
         "TMP4_ON_DIE_Temperature": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.6")),  # , °C
         "CPU_ON_DIE_Temperature": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.7")),  # , °C
@@ -59,8 +63,4 @@ modules:
         "B50185_Temperature": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.9")),  # , °C
         "B50210_1_Temperature": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.10")),  # , °C
         "B50210_2_Temperature": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.11")),  # , °C
-
-        "CPU_ON_DIE_Temperature_71": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.1")),  # , °C
-        "MV1514_1_Temperature": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.2")),  # , °C
-        "MV1514_2_Temperature": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.3")),  # , °C
-        "MV1680_Temperature": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.4")),  # , °C
+```
