@@ -36,6 +36,8 @@ modules:
     walk:
       - 1.3.6.1.2.1.1        # System (includes sysDescr)
       - 1.3.6.1.4.1.12356    # Fortinet MIB
+---
+
 ### 3. OIDs
         "Firmware Version": ObjectType(ObjectIdentity("1.3.6.1.4.1.12356.101.4.1.1.0")),
         "uptime, days": ObjectType(ObjectIdentity("1.3.6.1.2.1.1.3.0")),
