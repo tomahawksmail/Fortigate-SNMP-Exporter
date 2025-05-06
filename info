@@ -1,0 +1,3 @@
+docker build -t fortigate71 .
+docker run -d -p 8024:8024 fortigate71
+
