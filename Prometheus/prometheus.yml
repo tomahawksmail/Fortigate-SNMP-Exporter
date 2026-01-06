@@ -21,5 +21,5 @@ scrape_configs:
   metrics_path: /metrics
   static_configs:
     - targets:
-      - 192.168.11.31:8023
+      - 192.168.11.31:8026
 ***********************************
