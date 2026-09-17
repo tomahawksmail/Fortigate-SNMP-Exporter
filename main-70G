@@ -1,648 +1,112 @@
+# pip install paramiko
 # pip install prometheus_client
-# pip install pysnmp
-
 ########################
 ### Maksym Tsybulskyi ###
 ###      2025        ###
-########################
 
 from prometheus_client import start_http_server, Gauge, Info, Counter
 import time
 import asyncio
-import re
 from pysnmp.hlapi.v3arch.asyncio import *
 
 
-# ============================================================
-# PROMETHEUS METRICS
-# Keep same names as existing exporters / Grafana dashboards
-# ============================================================
+Firmware_Version = Info('Firmware_Version', 'Description of firmware version')
+Uptime = Gauge('Uptime', 'in days')
+cpu = Gauge('CPU_load', 'CPU load')
+memory = Gauge('Memory_load', 'Memory load')
+Low_Memory_Usage = Gauge('Low_Memory_Usage', 'Memory load')
+Sessions = Gauge('Sessions', 'Sessions')
+Active_Sessions = Gauge('Active_Sessions', 'Active_Sessions')
+TMP1_External_Temperature = Gauge('TMP1_External_Temperature', 'TMP1_External_Temperature')
+TMP4_ON_DIE_Temperature = Gauge('TMP4_ON_DIE_Temperature', 'TMP4_ON_DIE_Temperature')
+CPU_ON_DIE_Temperature = Gauge('CPU_ON_DIE_Temperature', 'CPU_ON_DIE_Temperature')
+chip_88E1514_1_Temperature = Gauge('88E1514_1_Temperature', '88E1514_1_Temperature')
+chip_88E1514_2_Temperature = Gauge('88E1514_2_Temperature', '88E1514_2_Temperature')
+chip_88E1680_Temperature = Gauge('88E1680_Temperature', '88E1680_Temperature')
 
-Firmware_Version = Info(
-    'Firmware_Version',
-    'Description of firmware version'
-)
-
-Uptime = Gauge(
-    'Uptime',
-    'Description of info'
-)
-
-cpu = Gauge(
-    'CPU_load',
-    'CPU load'
-)
-
-memory = Gauge(
-    'Memory_load',
-    'Memory load'
-)
-
-Low_Memory_Usage = Gauge(
-    'Low_Memory_Usage',
-    'Memory load'
-)
-
-Disk_Usage = Gauge(
-    'Disk_Usage',
-    'Memory load'
-)
-
-Sessions = Gauge(
-    'Sessions',
-    'Sessions'
-)
-
-Active_Sessions = Gauge(
-    'Active_Sessions',
-    'Active_Sessions'
-)
-
-FanStatusSpeed_1 = Gauge(
-    'FanStatusSpeed_1',
-    'FanStatusSpeed_1'
-)
-
-FanStatusSpeed_2 = Gauge(
-    'FanStatusSpeed_2',
-    'FanStatusSpeed_2'
-)
-
-PSUStatus_1 = Gauge(
-    'psuStatus_1',
-    'psuStatus_1'
-)
-
-PSUStatus_2 = Gauge(
-    'psuStatus_2',
-    'psuStatus_2'
-)
-
-
-# ============================================================
-# TEMPERATURE METRICS
-#
-# Metric names stay exactly the same as your old exporter.
-#
-# Mapping for FortiGate 70G:
-#
-# TMP1_External_Temperature -> TMP1 External
-# TMP4_ON_DIE_Temperature  -> TMP4
-# CPU_ON_DIE_Temperature   -> CPU ON-DIE
-# BCM_Switch_Temperature   -> 88E1514_1
-# B50185_Temperature       -> 88E1514_2
-# B50210_1_Temperature     -> 88E1680
-# B50210_2_Temperature     -> unavailable on 70G
-# ============================================================
-
-TMP1_External_Temperature = Gauge(
-    'TMP1_External_Temperature',
-    'FortiGate 70G TMP1 External Temperature'
-)
-
-TMP4_ON_DIE_Temperature = Gauge(
-    'TMP4_ON_DIE_Temperature',
-    'FortiGate 70G TMP4 Temperature'
-)
-
-CPU_ON_DIE_Temperature = Gauge(
-    'CPU_ON_DIE_Temperature',
-    'FortiGate 70G CPU ON-DIE Temperature'
-)
-
-BCM_Switch_Temperature = Gauge(
-    'BCM_Switch_Temperature',
-    'FortiGate 70G 88E1514_1 Temperature'
-)
-
-B50185_Temperature = Gauge(
-    'B50185_Temperature',
-    'FortiGate 70G 88E1514_2 Temperature'
-)
-
-B50210_1_Temperature = Gauge(
-    'B50210_1_Temperature',
-    'FortiGate 70G 88E1680 Temperature'
-)
-
-B50210_2_Temperature = Gauge(
-    'B50210_2_Temperature',
-    'Not available on FortiGate 70G'
-)
-
-
-# ============================================================
-# HELPERS
-# ============================================================
-
-def get_number(value):
-    """
-    Convert SNMP values such as:
-
-        52
-        52.1
-        "52.1"
-        "52.1 C"
-
-    to float.
-
-    Returns None if the value is empty or non-numeric.
-    """
-
-    if value is None:
-        return None
-
-    value = str(value).strip()
-
-    if value == "":
-        return None
-
-    match = re.search(
-        r'-?\d+(?:\.\d+)?',
-        value
-    )
-
-    if not match:
-        return None
-
-    try:
-        return float(match.group())
-    except ValueError:
-        return None
-
-
-def set_metric(metric, data, key):
-    """
-    Safely assign numeric SNMP value to Prometheus Gauge.
-    """
-
-    value = get_number(
-        data.get(key)
-    )
-
-    if value is None:
-        print(
-            f"WARNING: {key} returned "
-            f"{repr(data.get(key))}"
-        )
-
-        metric.set(float('nan'))
-
-    else:
-        metric.set(value)
-
-
-# ============================================================
-# FORTIGATE 70G
-# ============================================================
 
 async def run_Fortigate70G():
-
     snmpEngine = SnmpEngine()
-
     results = []
-
-    try:
-
-        # ----------------------------------------------------
-        # FortiGate 70G
-        # ----------------------------------------------------
-
-        transport = await UdpTransportTarget.create(
-            ("192.168.11.22", 161),
-            timeout=5,
-            retries=2
-        )
-
-
-        # ====================================================
-        # SNMP OIDs
-        # ====================================================
-
-        oids = {
-
-            # ------------------------------------------------
-            # SYSTEM
-            # ------------------------------------------------
-
-            "Firmware Version":
-                ObjectType(
-                    ObjectIdentity(
-                        "1.3.6.1.4.1.12356.101.4.1.1.0"
-                    )
-                ),
-
-            "uptime, days":
-                ObjectType(
-                    ObjectIdentity(
-                        "1.3.6.1.2.1.1.3.0"
-                    )
-                ),
-
-            "cpu, %":
-                ObjectType(
-                    ObjectIdentity(
-                        "1.3.6.1.4.1.12356.101.4.1.3.0"
-                    )
-                ),
-
-            "memory, %":
-                ObjectType(
-                    ObjectIdentity(
-                        "1.3.6.1.4.1.12356.101.4.1.4.0"
-                    )
-                ),
-
-            "Low Memory Usage, %":
-                ObjectType(
-                    ObjectIdentity(
-                        "1.3.6.1.4.1.12356.101.4.1.9.0"
-                    )
-                ),
-
-            "Disk Usage, MB":
-                ObjectType(
-                    ObjectIdentity(
-                        "1.3.6.1.4.1.12356.101.4.1.6.0"
-                    )
-                ),
-
-            # Correct session OID
-            "Sessions":
-                ObjectType(
-                    ObjectIdentity(
-                        "1.3.6.1.4.1.12356.101.4.1.8.0"
-                    )
-                ),
-
-            # Keep old metric name for compatibility.
-            # On this exporter it reports same current
-            # active session counter.
-            "Active_Sessions":
-                ObjectType(
-                    ObjectIdentity(
-                        "1.3.6.1.4.1.12356.101.4.1.8.0"
-                    )
-                ),
-
-
-            # =================================================
-            # FORTIGATE 70G TEMPERATURES
-            # =================================================
-
-            "TMP1_External_Temperature":
-                ObjectType(
-                    ObjectIdentity(
-                        "1.3.6.1.4.1.12356.101.4.3.2.1.3.1"
-                    )
-                ),
-
-            "TMP4_ON_DIE_Temperature":
-                ObjectType(
-                    ObjectIdentity(
-                        "1.3.6.1.4.1.12356.101.4.3.2.1.3.2"
-                    )
-                ),
-
-            "CPU_ON_DIE_Temperature":
-                ObjectType(
-                    ObjectIdentity(
-                        "1.3.6.1.4.1.12356.101.4.3.2.1.3.3"
-                    )
-                ),
-
-            # 88E1514_1
-            "BCM_Switch_Temperature":
-                ObjectType(
-                    ObjectIdentity(
-                        "1.3.6.1.4.1.12356.101.4.3.2.1.3.4"
-                    )
-                ),
-
-            # 88E1514_2
-            "B50185_Temperature":
-                ObjectType(
-                    ObjectIdentity(
-                        "1.3.6.1.4.1.12356.101.4.3.2.1.3.5"
-                    )
-                ),
-
-            # 88E1680
-            "B50210_1_Temperature":
-                ObjectType(
-                    ObjectIdentity(
-                        "1.3.6.1.4.1.12356.101.4.3.2.1.3.6"
-                    )
-                ),
-        }
-
-
-        # ====================================================
-        # SNMP GET
-        # ====================================================
-
-        result = await get_cmd(
-            snmpEngine,
-
-            CommunityData(
-                "SNMP-12",
-                mpModel=1
-            ),
-
-            transport,
-
-            ContextData(),
-
-            *oids.values(),
-        )
-
-
-        errorIndication, errorStatus, errorIndex, varBinds = result
-
-
-        # ====================================================
-        # ERRORS
-        # ====================================================
-
-        if errorIndication:
-            print(
-                "SNMP Error:",
-                errorIndication
-            )
-
-            return None
-
-        elif errorStatus:
-
-            print(
-                "{} at {}".format(
-                    errorStatus.prettyPrint(),
-                    errorIndex
-                    and varBinds[
-                        int(errorIndex) - 1
-                    ][0]
-                    or "?"
-                )
-            )
-            return None
-
-
-        # ====================================================
-        # RESULTS
-        # ====================================================
-
-        else:
-            for key, varBind in zip(
-                oids.keys(),
-                varBinds
-            ):
-
-                value = (
-                    varBind[1]
-                    .prettyPrint()
-                )
-
-
-                # --------------------------------------------
-                # UPTIME
-                # TimeTicks = 1/100 second
-                # --------------------------------------------
-
-                if key == "uptime, days":
-
-                    numeric_value = get_number(
-                        value
-                    )
-
-                    if numeric_value is not None:
-
-                        uptime_days = round(
-                            numeric_value
-                            / 8640000,
-                            1
-                        )
-
-                        results.append(
-                            f"{key} = "
-                            f"{uptime_days}"
-                        )
-
-                    else:
-
-                        results.append(
-                            f"{key} = "
-                        )
-
-
-                else:
-
-                    results.append(
-                        f"{key} = {value}"
-                    )
-
-
-            data = dict(
-                item.split(
-                    " = ",
-                    1
-                )
-                for item in results
-            )
-
-
-            # ------------------------------------------------
-            # DEBUG OUTPUT
-            # ------------------------------------------------
-
-            print()
-            print("=" * 70)
-            print("FortiGate 70G - 192.168.11.22")
-            print("=" * 70)
-
-            for key, value in data.items():
-
-                print(
-                    f"{key:<35} {value}"
-                )
-
-
-            return data
-
-
-    except Exception as error:
+    # Create transport
+    transport = await UdpTransportTarget.create(("192.168.11.22", 161))
+
+    # Define SNMP OIDs
+    oids = {
+        # "sysDescr": ObjectType(ObjectIdentity("1.3.6.1.2.1.1.1.0")),
+        "Firmware Version": ObjectType(ObjectIdentity("1.3.6.1.4.1.12356.101.4.1.1.0")),
+        "uptime, days": ObjectType(ObjectIdentity("1.3.6.1.2.1.1.3.0")),
+        "cpu, %": ObjectType(ObjectIdentity("1.3.6.1.4.1.12356.101.4.1.3.0")),
+        "memory, %": ObjectType(ObjectIdentity("1.3.6.1.4.1.12356.101.4.1.4.0")),
+        "Low Memory Usage, %": ObjectType(ObjectIdentity("1.3.6.1.4.1.12356.101.4.1.9.0")),
+        "Sessions": ObjectType(ObjectIdentity("1.3.6.1.4.1.12356.101.4.1.6.0")),
+        "Active_Sessions": ObjectType(ObjectIdentity("1.3.6.1.4.1.12356.101.4.1.8.0")),
+        "TMP1_External_Temperature": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.1")),  # , °C
+        "TMP4_Temperature": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.2")),  # , °C
+        "CPU_ON_DIE_Temperature": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.3")),  # , °C
+        "88E1514_1_Temperature": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.4")),  # , °C
+        "88E1514_2_Temperature": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.5")),  # , °C
+        "88E1680_Temperature": ObjectType(ObjectIdentity("iso.3.6.1.4.1.12356.101.4.3.2.1.3.6")),  # , °C
+
+    }
+
+    # Run SNMP GET
+    result = await get_cmd(
+        snmpEngine,
+        CommunityData("SNMP-12", mpModel=1),  # SNMPv2c
+        transport,
+        ContextData(),
+        *oids.values(),
+    )
+
+    errorIndication, errorStatus, errorIndex, varBinds = result
+
+    if errorIndication:
+        print("SNMP Error:", errorIndication)
+    elif errorStatus:
         print(
-            f"SNMP collection error: "
-            f"{error}"
-        )
-        return None
-    finally:
-        snmpEngine.close_dispatcher()
-
-
-# ============================================================
-# PROMETHEUS UPDATE
-# ============================================================
-
-def collect_dataCA_FStreet():
-
-    data = asyncio.run(
-        run_Fortigate70G()
-    )
-
-
-    if not data:
-
-        print(
-            "No SNMP data received"
-        )
-
-        return
-
-
-    # ========================================================
-    # FIRMWARE
-    # ========================================================
-
-    Firmware_Version.info({
-        'version':
-            data.get(
-                "Firmware Version",
-                "unknown"
+            "{} at {}".format(
+                errorStatus.prettyPrint(),
+                errorIndex and varBinds[int(errorIndex) - 1][0] or "?",
             )
-    })
+        )
+    else:
+        for key, varBind in zip(oids.keys(), varBinds):
+            if key == "uptime, days":
+                results.append(f"{key} = {round((varBind[1] / 8640000), 1)}")
+            else:
+                results.append(f"{key} = {varBind[1]}")
+        data = dict(item.split(" = ") for item in results)
+        return data
+
+    # Clean up
+    snmpEngine.close_dispatcher()
 
 
-    # ========================================================
-    # BASIC METRICS
-    # ========================================================
-
-    set_metric(
-        Uptime,
-        data,
-        "uptime, days"
-    )
-
-    set_metric(
-        cpu,
-        data,
-        "cpu, %"
-    )
-
-    set_metric(
-        memory,
-        data,
-        "memory, %"
-    )
-
-    set_metric(
-        Low_Memory_Usage,
-        data,
-        "Low Memory Usage, %"
-    )
-
-    set_metric(
-        Disk_Usage,
-        data,
-        "Disk Usage, MB"
-    )
-
-    set_metric(
-        Sessions,
-        data,
-        "Sessions"
-    )
-
-    set_metric(
-        Active_Sessions,
-        data,
-        "Active_Sessions"
-    )
+def collect_dataCA():
+    data = asyncio.run(run_Fortigate70G())
+    Firmware_Version.info({'version': (data.get("Firmware Version"))})
+    Uptime.set(data.get("uptime, days"))
+    cpu.set(data.get("cpu, %"))
+    memory.set(data.get("memory, %"))
+    Sessions.set(data.get("Sessions"))
+    Active_Sessions.set(data.get("Active_Sessions"))
+    TMP1_External_Temperature.set(data.get("TMP1_External_Temperature"))
+    TMP4_ON_DIE_Temperature.set(data.get("TMP4_Temperature"))
+    CPU_ON_DIE_Temperature.set(data.get("CPU_ON_DIE_Temperature"))
+    chip_88E1514_1_Temperature.set(data.get("88E1514_1_Temperature"))
+    chip_88E1514_2_Temperature.set(data.get("88E1514_2_Temperature"))
+    chip_88E1680_Temperature.set(data.get("88E1680_Temperature"))
 
 
-    # ========================================================
-    # FORTIGATE 70G DOES NOT RETURN FAN / PSU VALUES
-    #
-    # NaN = metric exists, but value is unavailable.
-    # Better than reporting a false 0.
-    # ========================================================
-
-    FanStatusSpeed_1.set(
-        float('nan')
-    )
-
-    FanStatusSpeed_2.set(
-        float('nan')
-    )
-
-    PSUStatus_1.set(
-        float('nan')
-    )
-
-    PSUStatus_2.set(
-        float('nan')
-    )
-
-
-    # ========================================================
-    # TEMPERATURES
-    # ========================================================
-
-    set_metric(
-        TMP1_External_Temperature,
-        data,
-        "TMP1_External_Temperature"
-    )
-
-    set_metric(
-        TMP4_ON_DIE_Temperature,
-        data,
-        "TMP4_ON_DIE_Temperature"
-    )
-
-    set_metric(
-        CPU_ON_DIE_Temperature,
-        data,
-        "CPU_ON_DIE_Temperature"
-    )
-
-    set_metric(
-        BCM_Switch_Temperature,
-        data,
-        "BCM_Switch_Temperature"
-    )
-
-    set_metric(
-        B50185_Temperature,
-        data,
-        "B50185_Temperature"
-    )
-
-    set_metric(
-        B50210_1_Temperature,
-        data,
-        "B50210_1_Temperature"
-    )
-
-
-    # This sensor does not exist on this 70G
-    B50210_2_Temperature.set(
-        float('nan')
-    )
-
-
-# ============================================================
-# MAIN
-# ============================================================
 
 if __name__ == '__main__':
-    start_http_server(
-        8027
-    )
+    # Start a Prometheus metrics server on port 8000
+    start_http_server(8025)
+    print("Serving metrics on http://localhost:8025/metrics")
 
-    print(
-        "Serving metrics on "
-        "http://localhost:8027/metrics"
-    )
+    # Collect and update the metric periodically
     while True:
-        collect_dataCA_FStreet()
-        time.sleep(60)
+        collect_dataCA()
+        # collect_dataMO()
+        time.sleep(60)  # Adjust the interval as needed
